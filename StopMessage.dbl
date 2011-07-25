@@ -1,0 +1,76 @@
+subroutine StopMessage
+    endparams
+    record
+        ttChan  ,i4
+proc
+    ttChan = %syn_freechn()
+    onerror err
+    open(ttChan, O, 'TT:')
+    anyKey(ttChan, 10, "terminate program")
+    close ttChan
+err,
+    offerror
+    ;supress stop message
+    flags(7000000,1)
+    xreturn
+endsubroutine
+
+;; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+subroutine anyKey
+    req in  ttChan      ,n                  ;channel
+    opt in  waitTime    ,n                  ;number of iterations
+    opt in  message     ,a                  ;message
+    endparams
+    record
+        char        ,d4                     ;input character
+        cnt         ,d2                     ;timeout countdown
+        bs          ,a ^size(cnt)           ;backspace characters
+        spc         ,a ^size(cnt)           ;space characters
+        myTtflgs    ,d10                    ;TTFLGS value
+        myFlags     ,d10                    ;FLAGS value
+proc
+    flags(myFlags,2)                        ;save FLAGS
+    flags(50000,1)                          ;no local echo
+.ifndef DBLNET
+    ttflgs(myTtflgs,2)                      ;save TTFLGS
+    ttflgs(4000,1)                          ;function keys are coded
+.endc ;DBLNET
+    fill(%char(8), bs)
+    if(%passed(waitTime)) then
+        cnt = waitTime
+    else
+        cnt = 10
+    if(^passed(message) && message) then
+        display(ttChan, "Press any key to "+message+" "+spc)
+    else
+        display(ttChan, "Press any key to continue "+spc)
+    onerror ($ERR_TIMOUT) timeout, done
+    accept(ttChan, char, WAIT:1)
+    if(false)
+    begin
+timeout,
+        if(cnt > 1)
+        begin
+            cnt -= 1
+            display(ttChan, bs, ^a(cnt))
+            accept(ttChan, char, WAIT:1)
+        end
+    end
+done,
+    offerror
+.ifndef DBLNET
+    ;; get any additional characters typed e.g. <LF>
+    while(%ttsts)
+        accept(ttChan, char)
+.endc ;DBLNET
+    display(ttChan, bs, spc, 13, 10)
+.ifndef DBLNET
+    ttflgs(myTtflgs,1)                      ;restore TTFLGS
+.endc ;DBLNET
+    flags(myFlags,1)                        ;restore FLAGS
+
+    xreturn
+endsubroutine
+
+;; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
